@@ -1,0 +1,299 @@
+library(e1071)         
+library(robustbase)     
+library(solitude)       
+library(stats)   
+library(tidyverse)
+library(DMwR2)  
+library(caret) 
+library(ggplot2)
+library(MASS)
+library(corrplot)
+library(dplyr)
+library(umap)
+library(data.table)
+library(mclust)
+library(ellipse)
+
+kc_data <- read_csv("cleaned_kc_eyes.csv") %>%
+  mutate(RowID = row_number())
+normal_data <- read_csv("cleaned_normal_eyes.csv") %>%
+  mutate(RowID = row_number())
+write_csv(normal_data, "cleaned_normal_eyes_with_RowID.csv")
+kc_selected <- kc_data %>%
+  dplyr::select(
+    RowID,
+    patients_age,
+    keratoconus_screening_s_if,
+    keratoconus_screening_s_ib,
+    keratoconus_screening_cs_if,
+    keratoconus_screening_cs_ib,
+    keratoconus_screening_ei2f,
+    keratoconus_screening_ei2b,
+    #keratoconus_screening_e_if_ax,
+    #keratoconus_screening_e_ib_ax,
+    keratoconus_screening_rm_sf,
+    keratoconus_screening_rm_sb,
+    keratoconus_screening_thk_si,
+    keratoconus_screening_pd_thk_si,
+    keratoconus_screening_pti,
+    keratoconus_screening_p_epi_ti,
+    keratoconus_screening_thk_min_value,
+    #keratoconus_screening_thk_min_center_x,
+    #keratoconus_screening_thk_min_center_y,
+    keratoconus_screening_str_thk_min_value,
+    #keratoconus_screening_str_thk_min_center_x,
+    #keratoconus_screening_str_thk_min_center_y,
+    keratoconus_screening_epi_thk_min_value,
+    #keratoconus_screening_epi_thk_min_center_x,
+    #keratoconus_screening_epi_thk_min_center_y,
+    keratoconus_screening_k_max_f_value,
+    #keratoconus_screening_k_max_f_center_x,
+    #keratoconus_screening_k_max_f_center_y,
+    keratoconus_screening_k_max_b_value,
+    #keratoconus_screening_k_max_b_center_x,
+    #keratoconus_screening_k_max_b_center_y,
+    keratoconus_screening_dz_max_f_value,
+    #keratoconus_screening_dz_max_f_center_x,
+    #keratoconus_screening_dz_max_f_center_y,
+    keratoconus_screening_dz_max_b_value,
+    #keratoconus_screening_dz_max_b_center_x,
+    #keratoconus_screening_dz_max_b_center_y,
+    #keratoconus_screening_notable_pts_barycenter_x,
+    #keratoconus_screening_notable_pts_barycenter_y,
+    keratoconus_screening_notable_pts_r
+  ) %>%
+  rename(
+    RowID = RowID,
+    Age = patients_age,
+    S_I_F = keratoconus_screening_s_if,
+    S_I_B = keratoconus_screening_s_ib,
+    CS_I_F = keratoconus_screening_cs_if,
+    CS_I_B = keratoconus_screening_cs_ib,
+    EI2F = keratoconus_screening_ei2f,
+    EI2B = keratoconus_screening_ei2b,
+    #E_IF_Ax = keratoconus_screening_e_if_ax,
+    #E_IB_Ax = keratoconus_screening_e_ib_ax,
+    RMS_F = keratoconus_screening_rm_sf,
+    RMS_B = keratoconus_screening_rm_sb,
+    Thk_SI = keratoconus_screening_thk_si,
+    PD_Thk_SI = keratoconus_screening_pd_thk_si,
+    PTI = keratoconus_screening_pti,
+    P_Epi_TI = keratoconus_screening_p_epi_ti,
+    Thk_Min_Value = keratoconus_screening_thk_min_value,
+    #Thk_Min_Center_X = keratoconus_screening_thk_min_center_x,
+    #Thk_Min_Center_Y = keratoconus_screening_thk_min_center_y,
+    Str_Thk_Min_Value = keratoconus_screening_str_thk_min_value,
+    #Str_Thk_Min_Center_X = keratoconus_screening_str_thk_min_center_x,
+    #Str_Thk_Min_Center_Y = keratoconus_screening_str_thk_min_center_y,
+    Epi_Thk_Min_Value = keratoconus_screening_epi_thk_min_value,
+    #Epi_Thk_Min_Center_X = keratoconus_screening_epi_thk_min_center_x,
+    #Epi_Thk_Min_Center_Y = keratoconus_screening_epi_thk_min_center_y,
+    K_Max_F_Value = keratoconus_screening_k_max_f_value,
+    #K_Max_F_Center_X = keratoconus_screening_k_max_f_center_x,
+    #K_Max_F_Center_Y = keratoconus_screening_k_max_f_center_y,
+    K_Max_B_Value = keratoconus_screening_k_max_b_value,
+    #K_Max_B_Center_X = keratoconus_screening_k_max_b_center_x,
+    #K_Max_B_Center_Y = keratoconus_screening_k_max_b_center_y,
+    DZ_Max_F_Value = keratoconus_screening_dz_max_f_value,
+    #DZ_Max_F_Center_X = keratoconus_screening_dz_max_f_center_x,
+    #DZ_Max_F_Center_Y = keratoconus_screening_dz_max_f_center_y,
+    DZ_Max_B_Value = keratoconus_screening_dz_max_b_value,
+    #DZ_Max_B_Center_X = keratoconus_screening_dz_max_b_center_x,
+    #DZ_Max_B_Center_Y = keratoconus_screening_dz_max_b_center_y,
+    #Notable_Pts_Barycenter_X = keratoconus_screening_notable_pts_barycenter_x,
+    #Notable_Pts_Barycenter_Y = keratoconus_screening_notable_pts_barycenter_y,
+    Notable_Pts_R = keratoconus_screening_notable_pts_r
+  )
+
+normal_selected <- normal_data %>%
+  dplyr::select(
+    RowID,
+    Patient.s.age,
+    Keratoconus.Screening.SIf,
+    Keratoconus.Screening.SIb,
+    Keratoconus.Screening.CSIf,
+    Keratoconus.Screening.CSIb,
+    Keratoconus.Screening.EI2f,
+    Keratoconus.Screening.EI2b,
+    #Keratoconus.Screening.EIfAx,
+    #Keratoconus.Screening.EIbAx,
+    Keratoconus.Screening.RMSf,
+    Keratoconus.Screening.RMSb,
+    Keratoconus.Screening.ThkSI,
+    Keratoconus.Screening.PDThkSI,
+    Keratoconus.Screening.PTI,
+    Keratoconus.Screening.PEpiTI,
+    Keratoconus.Screening.ThkMin.Value,
+    #Keratoconus.Screening.ThkMin.CenterX,
+    #Keratoconus.Screening.ThkMin.CenterY,
+    Keratoconus.Screening.StrThkMin.Value,
+    #Keratoconus.Screening.StrThkMin.CenterX,
+    #Keratoconus.Screening.StrThkMin.CenterY,
+    Keratoconus.Screening.EpiThkMin.Value,
+    #Keratoconus.Screening.EpiThkMin.CenterX,
+    #Keratoconus.Screening.EpiThkMin.CenterY,
+    Keratoconus.Screening.KMaxF.Value,
+    #Keratoconus.Screening.KMaxF.CenterX,
+    #Keratoconus.Screening.KMaxF.CenterY,
+    Keratoconus.Screening.KMaxB.Value,
+    #Keratoconus.Screening.KMaxB.CenterX,
+    #Keratoconus.Screening.KMaxB.CenterY,
+    Keratoconus.Screening.DZMaxF.Value,
+    #Keratoconus.Screening.DZMaxF.CenterX,
+    #Keratoconus.Screening.DZMaxF.CenterY,
+    Keratoconus.Screening.DZMaxB.Value,
+    #Keratoconus.Screening.DZMaxB.CenterX,
+    #Keratoconus.Screening.DZMaxB.CenterY,
+    #Keratoconus.Screening.NotablePtsBarycenterX,
+    #Keratoconus.Screening.NotablePtsBarycenterY,
+    Keratoconus.Screening.NotablePtsR
+  ) %>%
+  rename(
+    RowID = RowID,
+    Age = Patient.s.age,
+    S_I_F = Keratoconus.Screening.SIf,
+    S_I_B = Keratoconus.Screening.SIb,
+    CS_I_F = Keratoconus.Screening.CSIf,
+    CS_I_B = Keratoconus.Screening.CSIb,
+    EI2F = Keratoconus.Screening.EI2f,
+    EI2B = Keratoconus.Screening.EI2b,
+    #E_IF_Ax = Keratoconus.Screening.EIfAx,
+    #E_IB_Ax = Keratoconus.Screening.EIbAx,
+    RMS_F = Keratoconus.Screening.RMSf,
+    RMS_B = Keratoconus.Screening.RMSb,
+    Thk_SI = Keratoconus.Screening.ThkSI,
+    PD_Thk_SI = Keratoconus.Screening.PDThkSI,
+    PTI = Keratoconus.Screening.PTI,
+    P_Epi_TI = Keratoconus.Screening.PEpiTI,
+    Thk_Min_Value = Keratoconus.Screening.ThkMin.Value,
+    #Thk_Min_Center_X = Keratoconus.Screening.ThkMin.CenterX,
+    #Thk_Min_Center_Y = Keratoconus.Screening.ThkMin.CenterY,
+    Str_Thk_Min_Value = Keratoconus.Screening.StrThkMin.Value,
+    #Str_Thk_Min_Center_X = Keratoconus.Screening.StrThkMin.CenterX,
+    #Str_Thk_Min_Center_Y = Keratoconus.Screening.StrThkMin.CenterY,
+    Epi_Thk_Min_Value = Keratoconus.Screening.EpiThkMin.Value,
+    #Epi_Thk_Min_Center_X = Keratoconus.Screening.EpiThkMin.CenterX,
+    #Epi_Thk_Min_Center_Y = Keratoconus.Screening.EpiThkMin.CenterY,
+    K_Max_F_Value = Keratoconus.Screening.KMaxF.Value,
+    #K_Max_F_Center_X = Keratoconus.Screening.KMaxF.CenterX,
+    #K_Max_F_Center_Y = Keratoconus.Screening.KMaxF.CenterY,
+    K_Max_B_Value = Keratoconus.Screening.KMaxB.Value,
+    #K_Max_B_Center_X = Keratoconus.Screening.KMaxB.CenterX,
+    #K_Max_B_Center_Y = Keratoconus.Screening.KMaxB.CenterY,
+    DZ_Max_F_Value = Keratoconus.Screening.DZMaxF.Value,
+    #DZ_Max_F_Center_X = Keratoconus.Screening.DZMaxF.CenterX,
+    #DZ_Max_F_Center_Y = Keratoconus.Screening.DZMaxF.CenterY,
+    DZ_Max_B_Value = Keratoconus.Screening.DZMaxB.Value,
+    #DZ_Max_B_Center_X = Keratoconus.Screening.DZMaxB.CenterX,
+    #DZ_Max_B_Center_Y = Keratoconus.Screening.DZMaxB.CenterY,
+    #Notable_Pts_Barycenter_X = Keratoconus.Screening.NotablePtsBarycenterX,
+    #Notable_Pts_Barycenter_Y = Keratoconus.Screening.NotablePtsBarycenterY,
+    Notable_Pts_R = Keratoconus.Screening.NotablePtsR
+  )
+
+kc_selected$Group <- "Keratoconus"
+normal_selected$Group <- "Healthy"
+combined_data <- bind_rows(kc_selected, normal_selected) 
+
+# PCA Preprocessing:
+
+# Removal of missing values:
+combined_data_imputed <- knnImputation(combined_data %>% dplyr::select(-Group))
+combined_data_imputed$Group <- combined_data$Group
+combined_data_imputed$RowID <- combined_data$RowID
+
+# Standardisation
+robust_scale <- function(x) {
+  (x - median(x, na.rm = TRUE)) / IQR(x, na.rm = TRUE)
+}
+
+pca_data_robust <- combined_data_imputed %>%
+  dplyr::select(-Group, -RowID) %>%
+  mutate(across(everything(), robust_scale)) %>%
+  bind_cols(combined_data_imputed %>% dplyr::select(RowID))
+
+# Outlier Removal (z-score)
+z_scores <- as.data.frame(scale(pca_data_robust %>% dplyr::select(-RowID)))
+outlier_indices <- which(apply(abs(z_scores), 1, function(row) any(row > 3)))
+pca_data_no_outliers <- pca_data_robust[-outlier_indices, ]
+combined_data_no_outliers <- combined_data_imputed[-outlier_indices, ]
+
+# Running PCA
+pca_result <- prcomp(pca_data_no_outliers %>% dplyr::select(-RowID), center = TRUE, scale. = FALSE)
+pca_plot_data <- as.data.frame(pca_result$x)
+
+# Plot PCA
+ggplot(pca_plot_data, aes(x = PC1, y = PC2, color = Group)) +
+  geom_point(size = 0.2) +
+  labs(title = "PCA KC vs Healthy Eyes", 
+       x = "PC1", 
+       y = "PC2") +
+  theme_minimal()
+
+summary(pca_result)
+
+# Add back Group and RowID post PCA
+pca_plot_data$Group <- combined_data_no_outliers$Group
+pca_plot_data$RowID <- combined_data_no_outliers$RowID
+
+# Correlation matrix
+numeric_data <- combined_data %>%
+  dplyr::select(-Group)
+
+correlation_matrix <- cor(numeric_data, use = "pairwise.complete.obs")
+threshold <- 0.75
+
+high_corr_matrix <- abs(correlation_matrix) > threshold
+diag(high_corr_matrix) <- FALSE
+
+num_high_corr <- sum(high_corr_matrix[upper.tri(high_corr_matrix)])
+cat("Number of correlations greater than", threshold, ":", num_high_corr, "\n")
+
+corrplot(correlation_matrix, method = "color", type = "upper",  tl.col = "black", tl.cex = 0.7, number.cex = 0.5)
+
+# Variance explained by PCs + Scree Plot
+explained_variance <- pca_result$sdev^2 / sum(pca_result$sdev^2)
+
+variance_df <- data.frame(
+  PC = seq_along(explained_variance),
+  Variance_Explained = explained_variance * 100)
+
+# Plotting Scree Plot
+ggplot(variance_df, aes(x = PC, y = Variance_Explained)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Scree Plot: Explained Variance by PCs",
+       x = "Principal Component",
+       y = "Variance Explained (%)") +
+  theme_minimal()
+
+# Cumulative variance
+variance_df$Cumulative_Variance <- cumsum(explained_variance) * 100  
+ggplot(variance_df, aes(x = PC, y = Cumulative_Variance)) +
+  geom_point() +
+  geom_line() +
+  geom_hline(yintercept = 90, linetype = "dashed", color = "blue") + 
+  labs(title = "Cumulative Variance Explained by PCs",
+       x = "Number of Principal Components",
+       y = "Cumulative Variance Explained (%)") +
+  theme_minimal()
+
+# Running UMAP
+set.seed(1234)  # Seed = reproducibility
+umap_config <- umap.defaults  
+umap_config$random_state <- 1234 
+umap_result <- umap(as.matrix(pca_plot_data[, 1:6]), config = umap_config)
+
+umap_plot_data <- as.data.frame(umap_result$layout)
+colnames(umap_plot_data)[1:2] <- c("UMAP1", "UMAP2")  
+
+# Plotting UMAP
+ggplot(umap_plot_data, aes(x = UMAP1, y = UMAP2, color = Group)) +
+  geom_point(size = 0.5) +
+  labs(title = "UMAP of Keratoconus vs. Healthy Eyes", 
+       x = "UMAP 1", 
+       y = "UMAP 2") +
+  theme_minimal()
+
+umap_plot_data$Group <- pca_plot_data$Group  
+umap_plot_data$RowID <- pca_plot_data$RowID  
