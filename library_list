@@ -1,21 +1,21 @@
-library(mclust)
-library(dplyr)
-library(ellipse)
-library(ggplot2)
-library(readr)
-library(e1071)
-library(robustbase)
-library(solitude)
-library(stats)
-library(tidyverse)
-library(DMwR2)
-library(caret)
-library(MASS)
-library(corrplot)
-library(umap)
-library(data.table)
-library(h2o)
-library(data.tree)
-library(DiagrammeR)
-library(tidyr)
-library(tibble)
+library(mclust)      # https://cran.r-project.org/web/packages/mclust/index.html
+library(dplyr)       # https://cran.r-project.org/web/packages/dplyr/index.html
+library(ellipse)     # https://cran.r-project.org/web/packages/ellipse/index.html
+library(ggplot2)     # https://cran.r-project.org/web/packages/ggplot2/index.html
+library(readr)       # https://cran.r-project.org/web/packages/readr/index.html
+library(e1071)       # https://cran.r-project.org/web/packages/e1071/index.html
+library(robustbase)  # https://cran.r-project.org/web/packages/robustbase/index.html
+library(solitude)    # https://cran.r-project.org/web/packages/solitude/index.html
+library(stats)       # https://stat.ethz.ch/R-manual/R-devel/library/stats/html/00Index.html
+library(tidyverse)   # https://cran.r-project.org/web/packages/tidyverse/index.html
+library(DMwR2)       # https://cran.r-project.org/web/packages/DMwR2/index.html
+library(caret)       # https://cran.r-project.org/web/packages/caret/index.html
+library(MASS)        # https://cran.r-project.org/web/packages/MASS/index.html
+library(corrplot)    # https://cran.r-project.org/web/packages/corrplot/index.html
+library(umap)        # https://cran.r-project.org/web/packages/umap/index.html
+library(data.table)  # https://cran.r-project.org/web/packages/data.table/index.html
+library(h2o)         # https://cran.r-project.org/web/packages/h2o/index.html
+library(data.tree)   # https://cran.r-project.org/web/packages/data.tree/index.html
+library(DiagrammeR)  # https://cran.r-project.org/web/packages/DiagrammeR/index.html
+library(tidyr)       # https://cran.r-project.org/web/packages/tidyr/index.html
+library(tibble)      # https://cran.r-project.org/web/packages/tibble/index.html
