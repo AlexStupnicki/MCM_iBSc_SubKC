@@ -1,0 +1,87 @@
+library(mclust)
+library(dplyr)
+library(ellipse)
+library(ggplot2)
+library(readr)
+
+# Fitting GMM 
+gmm_model <- Mclust(umap_plot_data[, c("UMAP1", "UMAP2")], G = 2)
+
+# Clustering - probabiliteis
+umap_plot_data$GMM_Cluster <- gmm_model$classification
+umap_plot_data$Prob_Cluster1 <- gmm_model$z[, 1]
+umap_plot_data$Prob_Cluster2 <- gmm_model$z[, 2]
+
+matching_table <- table(umap_plot_data$GMM_Cluster, umap_plot_data$Group)
+print(matching_table)
+
+# Clusters with most KC and most healthy
+cluster_with_most_kc <- as.integer(names(which.max(matching_table[, "Keratoconus"])))
+cluster_with_most_healthy <- as.integer(names(which.max(matching_table[, "Healthy"])))
+
+cat("Cluster with most Keratoconus:", cluster_with_most_kc, "\n")
+cat("Cluster with most Healthy:", cluster_with_most_healthy, "\n")
+
+# Healthy posterior probability
+umap_plot_data <- umap_plot_data %>%
+  mutate(Healthy_Prob = case_when( cluster_with_most_healthy == 1 ~ Prob_Cluster1, 
+    cluster_with_most_healthy == 2 ~ Prob_Cluster2))
+
+# SubKC classification and thresholding
+umap_plot_data <- umap_plot_data %>%
+  mutate(
+    Final_Label = case_when(
+      (GMM_Cluster == cluster_with_most_healthy & Group == "Healthy" & Healthy_Prob > 0.999) ~ "Healthy",
+      (Group == "Healthy" & ((GMM_Cluster == cluster_with_most_healthy & Healthy_Prob <= 0.999) |
+                             (GMM_Cluster == cluster_with_most_kc))) ~ "Subclinical KC",
+      (Group == "Keratoconus") ~ "Keratoconus",
+      TRUE ~ "Check_Labels"))
+
+# Ellipse generation
+confidence_levels <- c(0.50, 0.75, 0.90, 0.95)
+means <- gmm_model$parameters$mean
+covariances <- gmm_model$parameters$variance$sigma
+ellipses_list <- list()
+
+for (i in 1:2) {
+  for (lv in confidence_levels) {
+    ellipse_points <- ellipse(covariances[,,i], centre = means[,i], level = lv, segments = 100)
+    ellipse_df <- as.data.frame(ellipse_points)
+    colnames(ellipse_df) <- c("x", "y") 
+    ellipse_df$cluster <- factor(i)
+    ellipse_df$level <- as.factor(lv)
+    ellipses_list[[length(ellipses_list) + 1]] <- ellipse_df
+  }
+}
+
+ellipses_df <- bind_rows(ellipses_list)
+
+# UMAP Plotting with ellipses and new labels
+ggplot(umap_plot_data, aes(x = UMAP1, y = UMAP2, color = Final_Label)) +
+  geom_point(size = 1) +
+  geom_path(data = ellipses_df, aes(x = x, y = y, group = interaction(cluster, level), linetype = level),
+            color = "black", linewidth = 1) +
+  scale_color_manual(values = c(
+    "Healthy" = "red",
+    "Subclinical KC" = "#orange",
+    "Keratoconus" = "blue",
+    "Check_Labels" = "black"
+  )) +
+  labs(
+    title = "GMM with SubKC and ellipses",
+    color = "Final Classification",
+    linetype = "Ellipse Coverage"
+  ) +
+  theme_minimal()
+
+# Exporting SubKC for ML training
+subkc_ids <- umap_plot_data %>%
+  filter(Final_Label == "Subclinical KC") %>%
+  pull(RowID)
+
+cat("Number of SubKC cases from UMAP:", length(subkc_ids), "\n")
+normal_eyes <- read_csv("cleaned_normal_eyes_with_RowID.csv")
+subkc_normal_eyes <- normal_eyes %>%
+  filter(RowID %in% subkc_ids)
+write_csv(subkc_normal_eyes, "subkc_normal_eyes.csv")
+cat("Exported", nrow(subkc_normal_eyes), "SubKC datapoints to 'subkc_normal_eyes.csv'.\n")
