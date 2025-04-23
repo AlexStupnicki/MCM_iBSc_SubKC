@@ -1,0 +1,179 @@
+# Libraries
+library(data.table)   
+library(dplyr)        
+library(tidyr)        
+library(ggplot2)      
+library(solitude)     
+library(tibble)      
+
+# Load filtered data
+normal_in  <- "filtered_normal_eyes2.csv"
+kc_in      <- "filtered_kc_eyes2.csv"
+normal_raw <- fread(normal_in, sep = ",")
+kc_raw     <- fread(kc_in,     sep = ",")
+
+# Biological limits for normals
+bio_limits_norm <- c(
+  "Keratoconus.Screening.RMSf", "Keratoconus.Screening.RMSb",
+  "Keratoconus.Screening.PEpiTI","Keratoconus.Screening.ThkMin.Value",
+  "Keratoconus.Screening.StrThkMin.Value","Keratoconus.Screening.EpiThkMin.Value",
+  "Keratoconus.Screening.KMaxF.Value","Keratoconus.Screening.KMaxB.Value",
+  "Keratoconus.Screening.DZMaxF.Value","Keratoconus.Screening.DZMaxB.Value",
+  "Keratoconus.Screening.NotablePtsR"
+)
+
+# drop any negatives in normal eyes
+clean_norm <- normal_raw %>%
+  filter(across(all_of(bio_limits_norm), ~ .x >= 0))
+
+write.csv(clean_norm, "normal_eyes_filtered.csv", row.names = FALSE)
+
+# Load normals for anomaly detection (with BL)
+normal_bl <- fread("/data2/AlexStupnicki/normal_eyes_filtered_BL.csv", sep = ",")
+
+# tidy up names
+names(normal_bl) <- names(normal_bl) %>%
+  gsub(" ", "_", .) %>%
+  gsub("\\[|\\]",   "", .)
+
+# columns we actually use
+cols_norm <- c(
+  "Keratoconus.Screening.SIf",  "Keratoconus.Screening.SIb",
+  "Keratoconus.Screening.CSIf", "Keratoconus.Screening.CSIb",
+  "Keratoconus.Screening.EI2f", "Keratoconus.Screening.EI2b",
+  "Keratoconus.Screening.RMSf", "Keratoconus.Screening.RMSb",
+  "Keratoconus.Screening.PEpiTI","Keratoconus.Screening.ThkMin.Value",
+  "Keratoconus.Screening.ThkMin.CenterY",
+  "Keratoconus.Screening.StrThkMin.Value",
+  "Keratoconus.Screening.StrThkMin.CenterY",
+  "Keratoconus.Screening.EpiThkMin.Value",
+  "Keratoconus.Screening.EpiThkMin.CenterY",
+  "Keratoconus.Screening.KMaxF.Value",
+  "Keratoconus.Screening.KMaxF.CenterY",
+  "Keratoconus.Screening.KMaxB.Value",
+  "Keratoconus.Screening.KMaxB.CenterY",
+  "Keratoconus.Screening.DZMaxF.Value",
+  "Keratoconus.Screening.DZMaxF.CenterY",
+  "Keratoconus.Screening.DZMaxB.Value",
+  "Keratoconus.Screening.DZMaxB.CenterY",
+  "Keratoconus.Screening.NotablePtsBarycenterY",
+  "Keratoconus.Screening.NotablePtsR",
+  "Keratoconus.Screening.PDThkSI",
+  "Keratoconus.Screening.PTI",
+  "Keratoconus.Screening.ThkSI"
+)
+
+if (!all(cols_norm %in% names(normal_bl))) stop("Missing columns in normal_bl.")
+
+data_norm <- normal_bl[, ..cols_norm]
+
+if (any(is.na(data_norm))) {
+  message("dropping NAs for normals…")
+  data_norm <- na.omit(data_norm)
+}
+
+idx_norm <- which(complete.cases(normal_bl[, ..cols_norm]))
+
+# anomaly detection for normals
+iso_norm <- isolationForest$new()
+iso_norm$fit(data_norm)
+scores_norm <- iso_norm$predict(data_norm)
+
+normal_bl$anomaly_score <- NA
+normal_bl$outlier       <- NA
+normal_bl$anomaly_score[idx_norm] <- scores_norm$anomaly_score
+thr_norm <- quantile(scores_norm$anomaly_score, 0.95)
+normal_bl$outlier[idx_norm] <- ifelse(
+  scores_norm$anomaly_score >= thr_norm, "Outlier", "Normal"
+)
+
+write.csv(filter(normal_bl, outlier == "Normal"), "cleaned_normal_eyes.csv", row.names = FALSE)
+write.csv(filter(normal_bl, outlier == "Outlier"),  "outliers.csv",             row.names = FALSE)
+
+# Biological limits for KC eyes
+bio_limits_kc <- c(
+  "keratoconus_screening_e_if_ax", "keratoconus_screening_e_ib_ax",
+  "keratoconus_screening_rm_sf",    "keratoconus_screening_rm_sb",
+  "keratoconus_screening_p_epi_ti","keratoconus_screening_thk_min_value",
+  "keratoconus_screening_str_thk_min_value",
+  "keratoconus_screening_epi_thk_min_value",
+  "keratoconus_screening_k_max_f_value",
+  "keratoconus_screening_k_max_b_value",
+  "keratoconus_screening_dz_max_f_value",
+  "keratoconus_screening_dz_max_b_value",
+  "keratoconus_screening_notable_pts_r"
+)
+
+clean_kc <- kc_raw %>%
+  filter(across(all_of(bio_limits_kc), ~ .x >= 0))
+
+write.csv(clean_kc, "kc_eyes_filtered_BL.csv", row.names = FALSE)
+
+# load filtered KC eyes for anomaly detection
+kc_bl <- fread("/data2/AlexStupnicki/kc_eyes_filtered_BL.csv", sep = ",")
+
+names(kc_bl) <- names(kc_bl) %>%
+  gsub(" ", "_", .) %>%
+  gsub("\\[|\\]",   "", .)
+
+cols_kc <- c(
+  "keratoconus_screening_s_if", "keratoconus_screening_s_ib",
+  "keratoconus_screening_cs_if","keratoconus_screening_cs_ib",
+  "keratoconus_screening_ei2f","keratoconus_screening_ei2b",
+  "keratoconus_screening_rm_sf","keratoconus_screening_rm_sb",
+  "keratoconus_screening_thk_si","keratoconus_screening_p_epi_ti",
+  "keratoconus_screening_thk_min_value",
+  "keratoconus_screening_thk_min_center_y",
+  "keratoconus_screening_str_thk_min_value",
+  "keratoconus_screening_str_thk_min_center_y",
+  "keratoconus_screening_epi_thk_min_value",
+  "keratoconus_screening_epi_thk_min_center_y",
+  "keratoconus_screening_k_max_f_value",
+  "keratoconus_screening_k_max_f_center_y",
+  "keratoconus_screening_k_max_b_value",
+  "keratoconus_screening_k_max_b_center_y",
+  "keratoconus_screening_dz_max_f_value",
+  "keratoconus_screening_dz_max_f_center_y",
+  "keratoconus_screening_dz_max_b_value",
+  "keratoconus_screening_dz_max_b_center_y",
+  "keratoconus_screening_notable_pts_barycenter_y",
+  "keratoconus_screening_notable_pts_r",
+  "keratoconus_screening_pd_thk_si",
+  "keratoconus_screening_pti"
+)
+
+if (!all(cols_kc %in% names(kc_bl))) stop("Missing columns in kc_bl.")
+
+data_kc <- kc_bl[, ..cols_kc]
+idx_kc  <- which(complete.cases(kc_bl[, ..cols_kc]))
+if (any(is.na(data_kc))) data_kc <- na.omit(data_kc)
+
+iso_kc <- isolationForest$new()
+iso_kc$fit(data_kc)
+scores_kc <- iso_kc$predict(data_kc)
+
+kc_bl$anomaly_score <- NA
+kc_bl$outlier       <- NA
+kc_bl$anomaly_score[idx_kc] <- scores_kc$anomaly_score
+thr_kc <- quantile(scores_kc$anomaly_score, 0.95)
+kc_bl$outlier[idx_kc] <- ifelse(
+  scores_kc$anomaly_score >= thr_kc, "Outlier", "Normal"
+)
+
+write.csv(filter(kc_bl, outlier == "Normal"), "cleaned_kc_eyes.csv",  row.names = FALSE)
+write.csv(filter(kc_bl, outlier == "Outlier"),  "outliers_kc.csv",    row.names = FALSE)
+
+# Histogram of anomaly scores
+hist(normal_bl$anomaly_score, breaks = 30,
+     main = "Anomaly Scores (Normal Eyes)",
+     xlab = "Score", ylab = "Count",
+     col = "lightblue", border = "black")
+abline(v = thr_norm, col = "red", lty = 2, lwd = 2)
+legend("topright", legend = "95% threshold", col = "red", lty = 2)
+
+hist(kc_bl$anomaly_score, breaks = 30,
+     main = "Anomaly Scores (KC Eyes)",
+     xlab = "Score", ylab = "Count",
+     col = "lightgreen", border = "black")
+abline(v = thr_kc, col = "red", lty = 2, lwd = 2)
+legend("topright", legend = "95% threshold", col = "red", lty = 2)
