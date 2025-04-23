@@ -1,0 +1,238 @@
+library(data.table)  
+library(dplyr)       
+library(tidyr)       
+library(ggplot2)     
+
+# Load data
+normal_path <- "/mnt/data2/mehpheonix/indices_oct_control290224.csv"
+kc_path     <- "/mnt/data/MS39_Raw/CSO2/metadata/kc_indices_clean.csv"
+
+bins   <- c(0, 50, 60, 65, 70, 75, 80, 85, 90, 95, 100)
+labels <- c("<54", "55-59", "60-64", "65-69", "70-74", "75-79", "80-84", "85-89", "90-94", "95-99")
+
+coverage_col <- "acquisition_quality_sections_coverage"
+
+variables_to_plot <- c(
+  "keratoconus_screening_s_if",
+  "keratoconus_screening_s_ib",
+  "keratoconus_screening_cs_if",
+  "keratoconus_screening_cs_ib",
+  "keratoconus_screening_ei2f",
+  "keratoconus_screening_ei2b",
+  "keratoconus_screening_rm_sf",
+  "keratoconus_screening_rm_sb",
+  "keratoconus_screening_thk_si",
+  "keratoconus_screening_pd_thk_si",
+  "keratoconus_screening_pti",
+  "keratoconus_screening_p_epi_ti",
+  "keratoconus_screening_thk_min_value",
+  "keratoconus_screening_thk_min_center_y",
+  "keratoconus_screening_str_thk_min_value",
+  "keratoconus_screening_str_thk_min_center_y",
+  "keratoconus_screening_epi_thk_min_value",
+  "keratoconus_screening_k_max_f_value",
+  "keratoconus_screening_k_max_b_value",
+  "keratoconus_screening_dz_max_f_value",
+  "keratoconus_screening_dz_max_b_value",
+  "keratoconus_screening_notable_pts_r"
+)
+
+normal_eyes <- fread(normal_path, sep = ";")
+kc_eyes     <- fread(kc_path)
+
+# Bins
+kc_eyes <- kc_eyes %>%
+  mutate(
+    sections_coverage = cut(
+      .data[[coverage_col]],
+      breaks        = bins,
+      include.lowest = TRUE,
+      right         = FALSE,
+      labels        = labels
+    )
+  )
+
+# Filtering 
+kc_eyes <- kc_eyes %>%
+  mutate(across(all_of(variables_to_plot), as.numeric)) %>%
+  drop_na(all_of(variables_to_plot))
+
+kc_eyes_long <- kc_eyes %>%
+  select(patkey, laterality, sections_coverage, all_of(variables_to_plot)) %>%
+  pivot_longer(
+    cols      = all_of(variables_to_plot),
+    names_to  = "variable",
+    values_to = "value"
+  ) %>%
+  mutate(variable = sub("keratoconus_screening_", "", variable)) %>%
+  drop_na(value)
+
+# Remove outliers
+filtered_kc_eyes_long <- kc_eyes_long %>%
+  group_by(variable, sections_coverage) %>%
+  mutate(
+    z_score = (value - mean(value, na.rm = TRUE)) / sd(value, na.rm = TRUE)
+  ) %>%
+  filter(abs(z_score) <= 3) %>%
+  ungroup()
+
+# wSD calculation
+within_subject_sd <- filtered_kc_eyes_long %>%
+  group_by(variable, patkey, sections_coverage, laterality) %>%
+  summarise(
+    within_sd = sd(value, na.rm = TRUE),
+    .groups   = "drop"
+  )
+
+# Average by eye laterality
+within_subject_sd_avg <- within_subject_sd %>%
+  group_by(variable, patkey, sections_coverage) %>%
+  summarise(
+    within_sd_avg = mean(within_sd, na.rm = TRUE),
+    .groups       = "drop"
+  )
+
+# For Sections Coverage
+summary_table_sections <- within_subject_sd_avg %>%
+  group_by(variable, sections_coverage) %>%
+  summarise(
+    average_within_sd = mean(within_sd_avg, na.rm = TRUE),
+    .groups           = "drop"
+  )
+
+# Plotting
+ggplot(summary_table,
+       aes(x = sections_coverage,
+           y = average_within_sd,
+           color = variable,
+           group = variable)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~ variable, scales = "free_y", ncol = 3) +
+  labs(
+    title = " Sections Coverage vs wSD — KC (avg OD/OS)",
+    x     = "Sections Coverage Range",
+    y     = "Average Within-Subject SD"
+  ) +
+  theme_minimal() + theme(
+    axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none")
+
+
+library(data.table)  
+library(dplyr)       
+library(tidyr)       
+library(ggplot2)     
+
+# Load data
+normal_path <- "/mnt/data2/mehpheonix/indices_oct_control290224.csv"
+kc_path     <- "/mnt/data/MS39_Raw/CSO2/metadata/kc_indices_clean.csv"
+
+bins   <- c(0, 50, 60, 65, 70, 75, 80, 85, 90, 95, 100)
+labels <- c("<54", "55-59", "60-64", "65-69", "70-74", "75-79", "80-84", "85-89", "90-94", "95-99")
+
+coverage_col <- "acquisition_quality_placido_coverage"
+
+variables_to_plot <- c(
+  "keratoconus_screening_s_if",
+  "keratoconus_screening_s_ib",
+  "keratoconus_screening_cs_if",
+  "keratoconus_screening_cs_ib",
+  "keratoconus_screening_ei2f",
+  "keratoconus_screening_ei2b",
+  "keratoconus_screening_rm_sf",
+  "keratoconus_screening_rm_sb",
+  "keratoconus_screening_thk_si",
+  "keratoconus_screening_pd_thk_si",
+  "keratoconus_screening_pti",
+  "keratoconus_screening_p_epi_ti",
+  "keratoconus_screening_thk_min_value",
+  "keratoconus_screening_thk_min_center_y",
+  "keratoconus_screening_str_thk_min_value",
+  "keratoconus_screening_str_thk_min_center_y",
+  "keratoconus_screening_epi_thk_min_value",
+  "keratoconus_screening_k_max_f_value",
+  "keratoconus_screening_k_max_b_value",
+  "keratoconus_screening_dz_max_f_value",
+  "keratoconus_screening_dz_max_b_value",
+  "keratoconus_screening_notable_pts_r"
+)
+
+normal_eyes <- fread(normal_path, sep = ";")
+kc_eyes     <- fread(kc_path)
+
+# Bins
+kc_eyes <- kc_eyes %>%
+  mutate(
+    placido_coverage = cut(
+      .data[[coverage_col]],
+      breaks        = bins,
+      include.lowest = TRUE,
+      right         = FALSE,
+      labels        = labels
+    )
+  )
+
+# Filtering 
+kc_eyes <- kc_eyes %>%
+  mutate(across(all_of(variables_to_plot), as.numeric)) %>%
+  drop_na(all_of(variables_to_plot))
+
+kc_eyes_long <- kc_eyes %>%
+  select(patkey, laterality, placido_coverage, all_of(variables_to_plot)) %>%
+  pivot_longer(
+    cols      = all_of(variables_to_plot),
+    names_to  = "variable",
+    values_to = "value"
+  ) %>%
+  mutate(variable = sub("keratoconus_screening_", "", variable)) %>%
+  drop_na(value)
+
+# Remove outliers
+filtered_kc_eyes_long <- kc_eyes_long %>%
+  group_by(variable, placido_coverage) %>%
+  mutate(
+    z_score = (value - mean(value, na.rm = TRUE)) / sd(value, na.rm = TRUE)
+  ) %>%
+  filter(abs(z_score) <= 3) %>%
+  ungroup()
+
+# wSD calculation
+within_subject_sd <- filtered_kc_eyes_long %>%
+  group_by(variable, patkey, placido_coverage, laterality) %>%
+  summarise(
+    within_sd = sd(value, na.rm = TRUE),
+    .groups   = "drop"
+  )
+
+# Average by eye laterality
+within_subject_sd_avg <- within_subject_sd %>%
+  group_by(variable, patkey, placido_coverage) %>%
+  summarise(
+    within_sd_avg = mean(within_sd, na.rm = TRUE),
+    .groups       = "drop"
+  )
+
+# For Placido Coverage
+summary_table_placido <- within_subject_sd_avg %>%
+  group_by(variable, placido_coverage) %>%
+  summarise(
+    average_within_sd = mean(within_sd_avg, na.rm = TRUE),
+    .groups           = "drop"
+  )
+
+# Plotting
+ggplot(summary_table,
+       aes(x = placido_coverage,
+           y = average_within_sd,
+           color = variable,
+           group = variable)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~ variable, scales = "free_y", ncol = 3) +
+  labs(
+    title = " Placido Coverage vs wSD — KC (avg OD/OS)",
+    x     = "Placido Coverage Range",
+    y     = "Average Within-Subject SD"
+  ) +
+  theme_minimal() + theme(
+    axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none")
