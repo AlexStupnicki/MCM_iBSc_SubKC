@@ -1,0 +1,404 @@
+library(e1071)         
+library(robustbase)     
+library(solitude)       
+library(stats)   
+library(tidyverse)
+library(DMwR2)  
+library(caret) 
+library(ggplot2)
+library(MASS)
+library(corrplot)
+library(dplyr)
+library(umap)
+library(data.table)
+library(h2o)
+library(data.tree)
+library(DiagrammeR)
+h2o.init()
+
+
+normal_eyes <- fread("healthy_data_without_subkc.csv") %>%
+  mutate(Group = "Healthy")
+subkc_eyes <- fread("subkc_normal_eyes.csv") %>%
+  mutate(Group = "Subclinical KC")
+
+
+normal_selected <- normal_eyes %>%
+  dplyr::select(
+    Group,
+    Patient.s.ID,
+    Patient.s.age,
+    Keratoconus.Screening.SIf,
+    Keratoconus.Screening.SIb,
+    Keratoconus.Screening.CSIf,
+    Keratoconus.Screening.CSIb,
+    Keratoconus.Screening.EI2f,
+    Keratoconus.Screening.EI2b,
+    #Keratoconus.Screening.EIfAx,
+    #Keratoconus.Screening.EIbAx,
+    Keratoconus.Screening.RMSf,
+    Keratoconus.Screening.RMSb,
+    Keratoconus.Screening.ThkSI,
+    Keratoconus.Screening.PDThkSI,
+    Keratoconus.Screening.PTI,
+    Keratoconus.Screening.PEpiTI,
+    Keratoconus.Screening.ThkMin.Value,
+    #Keratoconus.Screening.ThkMin.CenterX,
+    #Keratoconus.Screening.ThkMin.CenterY,
+    Keratoconus.Screening.StrThkMin.Value,
+    #Keratoconus.Screening.StrThkMin.CenterX,
+    #Keratoconus.Screening.StrThkMin.CenterY,
+    Keratoconus.Screening.EpiThkMin.Value,
+    #Keratoconus.Screening.EpiThkMin.CenterX,
+    #Keratoconus.Screening.EpiThkMin.CenterY,
+    Keratoconus.Screening.KMaxF.Value,
+    #Keratoconus.Screening.KMaxF.CenterX,
+    #Keratoconus.Screening.KMaxF.CenterY,
+    Keratoconus.Screening.KMaxB.Value,
+    #Keratoconus.Screening.KMaxB.CenterX,
+    #Keratoconus.Screening.KMaxB.CenterY,
+    Keratoconus.Screening.DZMaxF.Value,
+    #Keratoconus.Screening.DZMaxF.CenterX,
+    #Keratoconus.Screening.DZMaxF.CenterY,
+    Keratoconus.Screening.DZMaxB.Value,
+    #Keratoconus.Screening.DZMaxB.CenterX,
+    #Keratoconus.Screening.DZMaxB.CenterY,
+    #Keratoconus.Screening.NotablePtsBarycenterX,
+    #Keratoconus.Screening.NotablePtsBarycenterY,
+    Keratoconus.Screening.NotablePtsR
+  ) %>%
+  rename(
+    StudyID = Patient.s.ID,
+    Age = Patient.s.age,
+    S_I_F = Keratoconus.Screening.SIf,
+    S_I_B = Keratoconus.Screening.SIb,
+    CS_I_F = Keratoconus.Screening.CSIf,
+    CS_I_B = Keratoconus.Screening.CSIb,
+    EI2F = Keratoconus.Screening.EI2f,
+    EI2B = Keratoconus.Screening.EI2b,
+    #E_IF_Ax = Keratoconus.Screening.EIfAx,
+    #E_IB_Ax = Keratoconus.Screening.EIbAx,
+    RMS_F = Keratoconus.Screening.RMSf,
+    RMS_B = Keratoconus.Screening.RMSb,
+    Thk_SI = Keratoconus.Screening.ThkSI,
+    PD_Thk_SI = Keratoconus.Screening.PDThkSI,
+    PTI = Keratoconus.Screening.PTI,
+    P_Epi_TI = Keratoconus.Screening.PEpiTI,
+    Thk_Min_Value = Keratoconus.Screening.ThkMin.Value,
+    #Thk_Min_Center_X = Keratoconus.Screening.ThkMin.CenterX,
+    #Thk_Min_Center_Y = Keratoconus.Screening.ThkMin.CenterY,
+    Str_Thk_Min_Value = Keratoconus.Screening.StrThkMin.Value,
+    #Str_Thk_Min_Center_X = Keratoconus.Screening.StrThkMin.CenterX,
+    #Str_Thk_Min_Center_Y = Keratoconus.Screening.StrThkMin.CenterY,
+    Epi_Thk_Min_Value = Keratoconus.Screening.EpiThkMin.Value,
+    #Epi_Thk_Min_Center_X = Keratoconus.Screening.EpiThkMin.CenterX,
+    #Epi_Thk_Min_Center_Y = Keratoconus.Screening.EpiThkMin.CenterY,
+    K_Max_F_Value = Keratoconus.Screening.KMaxF.Value,
+    #K_Max_F_Center_X = Keratoconus.Screening.KMaxF.CenterX,
+    #K_Max_F_Center_Y = Keratoconus.Screening.KMaxF.CenterY,
+    K_Max_B_Value = Keratoconus.Screening.KMaxB.Value,
+    #K_Max_B_Center_X = Keratoconus.Screening.KMaxB.CenterX,
+    #K_Max_B_Center_Y = Keratoconus.Screening.KMaxB.CenterY,
+    DZ_Max_F_Value = Keratoconus.Screening.DZMaxF.Value,
+    #DZ_Max_F_Center_X = Keratoconus.Screening.DZMaxF.CenterX,
+    #DZ_Max_F_Center_Y = Keratoconus.Screening.DZMaxF.CenterY,
+    DZ_Max_B_Value = Keratoconus.Screening.DZMaxB.Value,
+    #DZ_Max_B_Center_X = Keratoconus.Screening.DZMaxB.CenterX,
+    #DZ_Max_B_Center_Y = Keratoconus.Screening.DZMaxB.CenterY,
+    #Notable_Pts_Barycenter_X = Keratoconus.Screening.NotablePtsBarycenterX,
+    #Notable_Pts_Barycenter_Y = Keratoconus.Screening.NotablePtsBarycenterY,
+    Notable_Pts_R = Keratoconus.Screening.NotablePtsR
+  )
+
+subkc_selected <- subkc_eyes %>%
+  dplyr::select(
+    Group,
+    Patient.s.ID,
+    Patient.s.age,
+    Keratoconus.Screening.SIf,
+    Keratoconus.Screening.SIb,
+    Keratoconus.Screening.CSIf,
+    Keratoconus.Screening.CSIb,
+    Keratoconus.Screening.EI2f,
+    Keratoconus.Screening.EI2b,
+    #Keratoconus.Screening.EIfAx,
+    #Keratoconus.Screening.EIbAx,
+    Keratoconus.Screening.RMSf,
+    Keratoconus.Screening.RMSb,
+    Keratoconus.Screening.ThkSI,
+    Keratoconus.Screening.PDThkSI,
+    Keratoconus.Screening.PTI,
+    Keratoconus.Screening.PEpiTI,
+    Keratoconus.Screening.ThkMin.Value,
+    #Keratoconus.Screening.ThkMin.CenterX,
+    #Keratoconus.Screening.ThkMin.CenterY,
+    Keratoconus.Screening.StrThkMin.Value,
+    #Keratoconus.Screening.StrThkMin.CenterX,
+    #Keratoconus.Screening.StrThkMin.CenterY,
+    Keratoconus.Screening.EpiThkMin.Value,
+    #Keratoconus.Screening.EpiThkMin.CenterX,
+    #Keratoconus.Screening.EpiThkMin.CenterY,
+    Keratoconus.Screening.KMaxF.Value,
+    #Keratoconus.Screening.KMaxF.CenterX,
+    #Keratoconus.Screening.KMaxF.CenterY,
+    Keratoconus.Screening.KMaxB.Value,
+    #Keratoconus.Screening.KMaxB.CenterX,
+    #Keratoconus.Screening.KMaxB.CenterY,
+    Keratoconus.Screening.DZMaxF.Value,
+    #Keratoconus.Screening.DZMaxF.CenterX,
+    #Keratoconus.Screening.DZMaxF.CenterY,
+    Keratoconus.Screening.DZMaxB.Value,
+    #Keratoconus.Screening.DZMaxB.CenterX,
+    #Keratoconus.Screening.DZMaxB.CenterY,
+    #Keratoconus.Screening.NotablePtsBarycenterX,
+    #Keratoconus.Screening.NotablePtsBarycenterY,
+    Keratoconus.Screening.NotablePtsR
+  ) %>%
+  rename(
+    StudyID = Patient.s.ID,
+    Age = Patient.s.age,
+    S_I_F = Keratoconus.Screening.SIf,
+    S_I_B = Keratoconus.Screening.SIb,
+    CS_I_F = Keratoconus.Screening.CSIf,
+    CS_I_B = Keratoconus.Screening.CSIb,
+    EI2F = Keratoconus.Screening.EI2f,
+    EI2B = Keratoconus.Screening.EI2b,
+    #E_IF_Ax = Keratoconus.Screening.EIfAx,
+    #E_IB_Ax = Keratoconus.Screening.EIbAx,
+    RMS_F = Keratoconus.Screening.RMSf,
+    RMS_B = Keratoconus.Screening.RMSb,
+    Thk_SI = Keratoconus.Screening.ThkSI,
+    PD_Thk_SI = Keratoconus.Screening.PDThkSI,
+    PTI = Keratoconus.Screening.PTI,
+    P_Epi_TI = Keratoconus.Screening.PEpiTI,
+    Thk_Min_Value = Keratoconus.Screening.ThkMin.Value,
+    #Thk_Min_Center_X = Keratoconus.Screening.ThkMin.CenterX,
+    #Thk_Min_Center_Y = Keratoconus.Screening.ThkMin.CenterY,
+    Str_Thk_Min_Value = Keratoconus.Screening.StrThkMin.Value,
+    #Str_Thk_Min_Center_X = Keratoconus.Screening.StrThkMin.CenterX,
+    #Str_Thk_Min_Center_Y = Keratoconus.Screening.StrThkMin.CenterY,
+    Epi_Thk_Min_Value = Keratoconus.Screening.EpiThkMin.Value,
+    #Epi_Thk_Min_Center_X = Keratoconus.Screening.EpiThkMin.CenterX,
+    #Epi_Thk_Min_Center_Y = Keratoconus.Screening.EpiThkMin.CenterY,
+    K_Max_F_Value = Keratoconus.Screening.KMaxF.Value,
+    #K_Max_F_Center_X = Keratoconus.Screening.KMaxF.CenterX,
+    #K_Max_F_Center_Y = Keratoconus.Screening.KMaxF.CenterY,
+    K_Max_B_Value = Keratoconus.Screening.KMaxB.Value,
+    #K_Max_B_Center_X = Keratoconus.Screening.KMaxB.CenterX,
+    #K_Max_B_Center_Y = Keratoconus.Screening.KMaxB.CenterY,
+    DZ_Max_F_Value = Keratoconus.Screening.DZMaxF.Value,
+    #DZ_Max_F_Center_X = Keratoconus.Screening.DZMaxF.CenterX,
+    #DZ_Max_F_Center_Y = Keratoconus.Screening.DZMaxF.CenterY,
+    DZ_Max_B_Value = Keratoconus.Screening.DZMaxB.Value,
+    #DZ_Max_B_Center_X = Keratoconus.Screening.DZMaxB.CenterX,
+    #DZ_Max_B_Center_Y = Keratoconus.Screening.DZMaxB.CenterY,
+    #Notable_Pts_Barycenter_X = Keratoconus.Screening.NotablePtsBarycenterX,
+    #Notable_Pts_Barycenter_Y = Keratoconus.Screening.NotablePtsBarycenterY,
+    Notable_Pts_R = Keratoconus.Screening.NotablePtsR
+  )
+
+combined_data <- bind_rows(normal_selected, subkc_selected)
+
+colnames(normal_selected)
+colnames(subkc_selected)
+colnames(combined_data)
+
+# H2O initialisation and data conversion
+h2o_data <- as.h2o(combined_data) 
+
+# Target for classification
+h2o_data[,"Group"] <- as.factor(h2o_data[,"Group"])
+target <- "Group"
+predictors <- setdiff(colnames(h2o_data), c("Group", "StudyID"))
+
+# Dataset split
+splits <- h2o.splitFrame(h2o_data, ratios = c(0.7, 0.15), seed = 1234)
+train_h2o <- splits[[1]]
+test_h2o  <- splits[[2]]
+valid_h2o <- splits[[3]]
+
+train_r <- as.data.frame(train_h2o)
+
+# Training data distribution before undersampling
+cat("Class distribution in training data (raw):\n")
+print(table(train_r$Group))
+
+subkc_train <- train_r %>% filter(Group == "Subclinical KC")
+healthy_train <- train_r %>% filter(Group == "Healthy")
+
+n_subkc <- nrow(subkc_train)
+cat("Number of SubKC cases:", n_subkc, "\n")
+
+# Undersampling Healthy group
+undersampled_healthy <- healthy_train %>% sample_n(n_subkc, replace = FALSE)
+
+# Merge the balanced training set (all SubKC and undersampled Healthy)
+balanced_train_r <- bind_rows(subkc_train, undersampled_healthy)
+cat("Class distribution in balanced training data:\n")
+print(table(balanced_train_r$Group))
+balanced_train_h2o <- as.h2o(balanced_train_r)
+
+# Running H2O (parameters)
+aml <- h2o.automl(
+  x = predictors,
+  y = target,
+  training_frame = balanced_train_h2o,  
+  validation_frame = valid_h2o,  
+  nfolds = 5,
+  max_runtime_secs = 300,
+  seed = 1234
+)
+
+# Results
+best_model <- aml@leader
+perf_test  <- h2o.performance(best_model, test_h2o)
+perf_valid <- h2o.performance(best_model, valid_h2o)
+
+cat("Validation Set Performance:\n")
+print(perf_valid)
+
+cat("Test Set Performance:\n")
+print(perf_test)
+
+leaderboard <- as.data.frame(h2o.get_leaderboard(aml, extra_columns = "ALL"))
+
+# Best model of each type
+best_gbm <- h2o.getModel(leaderboard$model_id[grepl("GBM", leaderboard$model_id)][1])
+best_glm <- h2o.getModel(leaderboard$model_id[grepl("GLM", leaderboard$model_id)][1])
+best_rf  <- h2o.getModel(leaderboard$model_id[grepl("DRF", leaderboard$model_id)][1])  
+best_xgb <- h2o.getModel(leaderboard$model_id[grepl("XGBoost", leaderboard$model_id)][1])
+best_ensemble <- h2o.getModel(leaderboard$model_id[grepl("StackedEnsemble", leaderboard$model_id)][1])
+
+# ROC performance evaluation
+perf_gbm <- h2o.performance(best_gbm, newdata = valid_h2o)
+perf_glm <- h2o.performance(best_glm, newdata = valid_h2o)
+perf_rf  <- h2o.performance(best_rf, newdata = valid_h2o)
+perf_xgb <- h2o.performance(best_xgb, newdata = valid_h2o)
+perf_ensemble <- h2o.performance(best_ensemble, newdata = valid_h2o)
+
+# Extracting TPR and FPR for each model
+roc_data <- data.frame(
+  FPR = c(
+    perf_gbm@metrics$thresholds_and_metric_scores$fpr,
+    perf_glm@metrics$thresholds_and_metric_scores$fpr,
+    perf_rf@metrics$thresholds_and_metric_scores$fpr,
+    perf_xgb@metrics$thresholds_and_metric_scores$fpr,
+    perf_ensemble@metrics$thresholds_and_metric_scores$fpr,
+  ),
+  TPR = c(
+    perf_gbm@metrics$thresholds_and_metric_scores$tpr,
+    perf_glm@metrics$thresholds_and_metric_scores$tpr,
+    perf_rf@metrics$thresholds_and_metric_scores$tpr,
+    perf_xgb@metrics$thresholds_and_metric_scores$tpr,
+    perf_ensemble@metrics$thresholds_and_metric_scores$tpr,
+  ),
+  Model = rep(
+    c("GBM", "GLM", "Random Forest", "XGBoost", "Stacked Ensemble", if(!is.null(best_dl)) "DeepLearning" else NULL),
+    times = c(
+      nrow(perf_gbm@metrics$thresholds_and_metric_scores),
+      nrow(perf_glm@metrics$thresholds_and_metric_scores),
+      nrow(perf_rf@metrics$thresholds_and_metric_scores),
+      nrow(perf_xgb@metrics$thresholds_and_metric_scores),
+      nrow(perf_ensemble@metrics$thresholds_and_metric_scores)
+    )
+  )
+)
+
+# Plotting ROC Curves
+ggplot(roc_data, aes(x = FPR, y = TPR, color = Model)) +
+  geom_line(size = 1) +
+  geom_abline(linetype = "dashed", color = "gray") +  # Random guess line
+  labs(title = "ROC Curves for Different Model Types",
+       x = "False Positive Rate",
+       y = "True Positive Rate") +
+  theme_minimal()
+
+perf_gbm <- h2o.performance(best_gbm, newdata = test_h2o)
+perf_glm <- h2o.performance(best_glm, newdata = test_h2o)
+perf_rf  <- h2o.performance(best_rf, newdata = test_h2o)
+perf_xgb <- h2o.performance(best_xgb, newdata = test_h2o)
+perf_ensemble <- h2o.performance(best_ensemble, newdata = test_h2o)
+perf_dl <- h2o.performance(best_dl, newdata = test_h2o)
+
+# For GBM:
+pr_gbm <- as.data.frame(perf_gbm@metrics$thresholds_and_metric_scores)[, c("precision", "recall")]
+pr_gbm$Model <- "GBM"
+
+# For GLM:
+pr_glm <- as.data.frame(perf_glm@metrics$thresholds_and_metric_scores)[, c("precision", "recall")]
+pr_glm$Model <- "GLM"
+
+# For Random Forest:
+pr_rf <- as.data.frame(perf_rf@metrics$thresholds_and_metric_scores)[, c("precision", "recall")]
+pr_rf$Model <- "Random Forest"
+
+# For XGBoost:
+pr_xgb <- as.data.frame(perf_xgb@metrics$thresholds_and_metric_scores)[, c("precision", "recall")]
+pr_xgb$Model <- "XGBoost"
+
+# For Stacked Ensemble:
+pr_ens <- as.data.frame(perf_ensemble@metrics$thresholds_and_metric_scores)[, c("precision", "recall")]
+pr_ens$Model <- "Stacked Ensemble"
+
+pr_dl <- as.data.frame(perf_dl@metrics$thresholds_and_metric_scores)[, c("precision", "recall")]
+pr_dl$Model <- "Deep Learning"
+
+# Combining
+pr_data <- bind_rows(pr_gbm, pr_glm, pr_rf, pr_xgb, pr_ens, pr_dl)
+
+# Plotting PR curves
+ggplot(pr_data, aes(x = recall, y = precision, color = Model)) +
+  geom_line(size = 1) +
+  labs(title = "Precision-Recall Curves for Different Model Types",
+       x = "Recall",
+       y = "Precision") +
+  theme_minimal()
+
+# Computing SHAP contributions
+shap_h2o <- h2o.predict_contributions(best_gbm_umap, train_h2o)
+shap_df <- as.data.frame(shap_h2o)
+
+# Remove bias term
+if ("BiasTerm" %in% names(shap_df)) {
+  shap_df <- shap_df[, !names(shap_df) %in% "BiasTerm"]
+}
+
+# Mean SHAP values for each feature
+shap_summary <- colMeans(shap_df, na.rm = TRUE)
+
+# SHAP Summary
+shap_summary_df <- data.frame(
+  Feature = names(shap_summary),
+  Mean_SHAP = shap_summary
+) %>%
+  arrange(desc(abs(Mean_SHAP)))
+
+# Plotting SHAP
+ggplot(shap_summary_df, aes(x = reorder(Feature, -Mean_SHAP), y = Mean_SHAP)) +
+  geom_bar(stat = "identity", fill = "#940909") +
+  coord_flip() +
+  labs(title = "Mean SHAP Values for GBM Model",
+       subtitle = "Negative SHAP -> Subclinical KC; Positive SHAP -> Healthy",
+       x = "Feature",
+       y = "Mean SHAP Value") +
+  theme_minimal()
+
+# GLM coefficients
+std_coefs <- h2o.coef_norm(best_glm_umap)
+std_coefs <- std_coefs[names(std_coefs) != "Intercept"]
+
+# Sort GLM coefficients
+coef_df <- data.frame(
+  Variable = names(std_coefs),
+  Coefficient = unlist(std_coefs)
+) %>%
+  arrange(desc(abs(Coefficient))) 
+
+# Plotting GLM coefficcients
+ggplot(coef_df, aes(x = reorder(Variable, abs(Coefficient)), y = Coefficient)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Coefficient Importance in Logistic Regression",
+       x = "Variable",
+       y = "Standardised Coefficient") +
+  theme_minimal()
