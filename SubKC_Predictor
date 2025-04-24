@@ -1,0 +1,85 @@
+#########################################################################################################################################################
+# This code allows to calculate the probability of SubKC from MS-39 derived metrics using a GBM model trained for the purpose of MCM iBSc Dissertation. 
+# This model has not been validated clinically and is meant for research purposes only. 
+# Author: Aleksander Stupnicki
+#########################################################################################################################################################
+
+#  1) Install and load packages if needed
+# install.packages("h2o")
+# install.packages("dplyr")
+# install.packages("readr")
+library(h2o)
+library(dplyr)
+library(readr)
+h2o.init(nthreads = -1, max_mem_size = "8G")
+
+# 2) Load the GBM model
+model_path <- "/mnt/data2/AlexStupnicki/SubKC_GBM_model/GBM_4_AutoML_15_20250424_90153" # Adjust file path accordingly
+gbm_model  <- h2o.loadModel(model_path)
+
+# 3) Define helper funciton to derive SubKC probability
+predict_subkc_prob <- function(new_data_df, model = gbm_model) {
+  hf    <- as.h2o(new_data_df)
+  preds <- h2o.predict(model, hf)
+  df <- as.data.frame(preds)
+  if (ncol(df) < 3) {
+    stop("Error: Prediction output has fewer than 3 columns.")
+  }
+  df[[3]]
+}
+
+# 4) Load your data and select relevant columns
+new_eyes <- read_csv("your_file_path.csv")
+new_eyes_selected <- new_eyes %>%
+  dplyr::select(
+    Patient.s.ID,
+    Patient.s.age,
+    Keratoconus.Screening.SIf,
+    Keratoconus.Screening.SIb,
+    Keratoconus.Screening.CSIf,
+    Keratoconus.Screening.CSIb,
+    Keratoconus.Screening.EI2f,
+    Keratoconus.Screening.EI2b,
+    Keratoconus.Screening.RMSf,
+    Keratoconus.Screening.RMSb,
+    Keratoconus.Screening.ThkSI,
+    Keratoconus.Screening.PDThkSI,
+    Keratoconus.Screening.PTI,
+    Keratoconus.Screening.PEpiTI,
+    Keratoconus.Screening.ThkMin.Value,
+    Keratoconus.Screening.StrThkMin.Value,
+    Keratoconus.Screening.EpiThkMin.Value,
+    Keratoconus.Screening.KMaxF.Value,
+    Keratoconus.Screening.KMaxB.Value,
+    Keratoconus.Screening.DZMaxF.Value,
+    Keratoconus.Screening.DZMaxB.Value,
+    Keratoconus.Screening.NotablePtsR
+  ) %>%
+  rename(
+    StudyID           = Patient.s.ID,
+    Age               = Patient.s.age,
+    S_I_F             = Keratoconus.Screening.SIf,
+    S_I_B             = Keratoconus.Screening.SIb,
+    CS_I_F            = Keratoconus.Screening.CSIf,
+    CS_I_B            = Keratoconus.Screening.CSIb,
+    EI2F              = Keratoconus.Screening.EI2f,
+    EI2B              = Keratoconus.Screening.EI2b,
+    RMS_F             = Keratoconus.Screening.RMSf,
+    RMS_B             = Keratoconus.Screening.RMSb,
+    Thk_SI            = Keratoconus.Screening.ThkSI,
+    PD_Thk_SI         = Keratoconus.Screening.PDThkSI,
+    PTI               = Keratoconus.Screening.PTI,
+    P_Epi_TI          = Keratoconus.Screening.PEpiTI,
+    Thk_Min_Value     = Keratoconus.Screening.ThkMin.Value,
+    Str_Thk_Min_Value = Keratoconus.Screening.StrThkMin.Value,
+    Epi_Thk_Min_Value = Keratoconus.Screening.EpiThkMin.Value,
+    K_Max_F_Value     = Keratoconus.Screening.KMaxF.Value,
+    K_Max_B_Value     = Keratoconus.Screening.KMaxB.Value,
+    DZ_Max_F_Value    = Keratoconus.Screening.DZMaxF.Value,
+    DZ_Max_B_Value    = Keratoconus.Screening.DZMaxB.Value,
+    Notable_Pts_R     = Keratoconus.Screening.NotablePtsR
+  )
+
+# 5) Calculate SubKC probability 
+subkc_prob <- predict_subkc_prob(new_eyes_selected)
+print(head(subkc_prob))
